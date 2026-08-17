@@ -31,12 +31,13 @@ export const channels = {
   roomRow: (roomId: string) => Channel.tablesdb(CONFIG.dbId).table(CONFIG.tables.rooms).row(roomId),
   playersTable: () => Channel.tablesdb(CONFIG.dbId).table(CONFIG.tables.players).row(),
   messagesTable: () => Channel.tablesdb(CONFIG.dbId).table(CONFIG.tables.messages).row(),
-  canvasPresence: (roomId: string) => Channel.presence(presenceIds.canvas(roomId)),
+  // Socket presence is keyed by the sender's user id, so the drawer broadcasts on
+  // its own user presence and guessers watch presences.<drawerId>.
+  drawerPresence: (drawerId: string) => Channel.presence(drawerId),
   presences: () => Channel.presences(),
 };
 
 // Presence ids
 export const presenceIds = {
-  canvas: (roomId: string) => `${roomId}_canvas`.slice(0, 36),
   user: (uid: string) => uid.slice(0, 36),
 };

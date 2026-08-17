@@ -38,6 +38,7 @@ function clockStr(secs: number) {
 
 export function PlayScreen({
   room,
+  me,
   role,
   messages,
   standings,
@@ -120,15 +121,18 @@ export function PlayScreen({
     const el = canvasRef.current;
     if (!el) return;
     const ctx = el.getContext("2d")!;
-    const unsub = subscribeCanvas(room.id, {
+    const unsub = subscribeCanvas(room.drawerId, {
       apply: (segs) => segs.forEach((s) => drawSeg(ctx, s)),
       clear: () => fillWhite(ctx),
     });
     return unsub;
-  }, [room.id, isDrawer, room.turnIndex]);
+  }, [room.drawerId, isDrawer, room.turnIndex]);
 
   // ---- drawer: local draw + throttled presence broadcast -------------------
-  const broadcaster = useMemo(() => (isDrawer ? makeCanvasBroadcaster(room.id) : null), [room.id, isDrawer]);
+  const broadcaster = useMemo(
+    () => (isDrawer ? makeCanvasBroadcaster(me, room.id, myName) : null),
+    [room.id, isDrawer, me, myName],
+  );
   const draw = useRef(false);
   const style = useRef<{ c: string; w: number; e: boolean }>({ c: brushColor, w: brush, e: erasing });
   const last = useRef<[number, number] | null>(null);

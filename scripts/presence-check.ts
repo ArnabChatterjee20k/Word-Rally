@@ -1,77 +1,59 @@
 /**
- * Diagnoses the canvas-over-presence transport on the real project.
+ * Confirms canvas-over-presence routing: the sender upserts its OWN user presence
+ * and the receiver subscribes to presences.<senderUid> and decodes the strokes.
  *   WR_KEY=<ephemeral-key> bun run scripts/presence-check.ts
  */
 (globalThis as any).window = globalThis;
-import { Client as Web, Realtime, Channel, Presences, Permission, Role } from "appwrite";
+import { Client as Web, Account as WebAccount, Realtime, Channel, Permission, Role } from "appwrite";
 import { Client as Srv, Account } from "node-appwrite";
 
-declare const process: { env: Record<string, string | undefined>; exit: (code?: number) => never };
-setTimeout(() => {
-  console.log("⏱  done");
-  process.exit(0);
-}, 16000);
+declare const process: { env: Record<string, string | undefined>; exit: (c?: number) => never };
+setTimeout(() => process.exit(2), 15000);
 
 const EP = "https://fra.cloud.appwrite.io/v1";
 const PROJ = "69df74c0000a309ef8af";
-const CID = "e2ecanvas";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function mintSecret(): Promise<string> {
+async function mint(): Promise<{ secret: string; userId: string }> {
   const admin = new Srv().setEndpoint(EP).setProject(PROJ).setKey(process.env.WR_KEY || "");
   const s = await new Account(admin).createAnonymousSession();
-  return s.secret;
+  return { secret: s.secret, userId: s.userId };
 }
 
 async function main() {
-  const [secA, secB] = [await mintSecret(), await mintSecret()];
-  const cA = new Web().setEndpoint(EP).setProject(PROJ).setSession(secA);
-  const cB = new Web().setEndpoint(EP).setProject(PROJ).setSession(secB);
-  // Authorize A's realtime connection with a JWT (carried in the socket URL).
-  try {
-    const { jwt } = await new (await import("appwrite")).Account(cA).createJWT();
-    (cA as any).setJWT(jwt);
-    console.log("A: JWT set");
-  } catch (e: any) {
-    console.log("A: JWT error:", e?.message);
-  }
+  const A = await mint();
+  const B = await mint();
+  const cA = new Web().setEndpoint(EP).setProject(PROJ).setSession(A.secret);
+  const cB = new Web().setEndpoint(EP).setProject(PROJ).setSession(B.secret);
+  // JWT only needed so the Node harness can send presence during the handshake.
+  const { jwt } = await new WebAccount(cA).createJWT();
+  (cA as any).setJWT(jwt);
   const rtA = new Realtime(cA);
   const rtB = new Realtime(cB);
 
-  rtB.onOpen(() => console.log("B: socket open"));
-  rtB.onError((e: any) => console.log("B: error:", e?.message));
-  rtA.onError((e: any) => console.log("A: error:", e?.message));
+  let received: any = null;
+  await rtB.subscribe(Channel.presence(A.userId), (evt: any) => (received = evt));
+  await sleep(2000);
 
-  await rtB.subscribe([Channel.presences(), Channel.presence(CID)], (evt: any) => {
-    console.log("B RECV events=", JSON.stringify(evt.events), "channels=", JSON.stringify(evt.channels));
-    console.log("   payload=", JSON.stringify(evt.payload).slice(0, 300));
-  });
-  await sleep(2500);
-
-  console.log("→ A: socket upsertPresence…");
   await rtA.upsertPresence({
-    presenceId: CID,
-    status: "drawing",
-    metadata: { seq: 1, clearVersion: 0, d: JSON.stringify([{ c: "#e60012", w: 6, e: false, pts: [[1, 2], [3, 4]] }]) },
-    permissions: [Permission.read(Role.users()), Permission.update(Role.users())],
+    presenceId: A.userId,
+    status: "online",
+    metadata: { roomId: "r1", role: "drawer", nickname: "Amy", seq: 7, clearVersion: 0, d: JSON.stringify([{ c: "#000", w: 6, e: false, pts: [[1, 2], [3, 4], [5, 6]] }]) },
+    permissions: [Permission.read(Role.users()), Permission.update(Role.user(A.userId))],
   });
-  await sleep(3500);
+  await sleep(3000);
 
-  console.log("→ A: HTTP Presences.upsert…");
-  try {
-    await new Presences(cA).upsert({
-      presenceId: CID + "http",
-      status: "online",
-      metadata: { hello: "world" },
-      permissions: [Permission.read(Role.users()), Permission.update(Role.users())],
-      expiresAt: new Date(Date.now() + 60000).toISOString(),
-    } as any);
-    console.log("   HTTP upsert ok");
-  } catch (e: any) {
-    console.log("   HTTP upsert error:", e?.message);
+  if (!received) {
+    console.log("❌ receiver got nothing on presences.<senderUid>");
+    process.exit(1);
   }
-  await sleep(4000);
-  console.log("(waited; see events above)");
+  const meta = received.payload?.metadata;
+  const segs = meta?.d ? JSON.parse(meta.d) : null;
+  const ok = received.payload?.$id === A.userId && Array.isArray(segs) && segs[0]?.pts?.length === 3;
+  console.log("payload $id:", received.payload?.$id, "=== senderUid:", received.payload?.$id === A.userId);
+  console.log("decoded seg pts:", segs?.[0]?.pts?.length);
+  console.log(ok ? "✅ routing + decode OK" : "❌ mismatch");
+  process.exit(ok ? 0 : 1);
 }
 
 await main();

@@ -26,30 +26,33 @@ function readMeta(payload: any): any | null {
   return m;
 }
 
-const usersRW = () => [Permission.read(Role.users()), Permission.update(Role.users())];
+const selfPerms = (uid: string) => [
+  Permission.read(Role.users()),
+  Permission.update(Role.user(uid)),
+  Permission.delete(Role.user(uid)),
+];
 
 // ----------------------------------------------------------------------------
-// Canvas over Presence, sent on the shared Realtime socket. The drawer upserts a
-// room-scoped presence whose metadata carries the latest stroke batch; guessers
-// subscribe to presences.<id>. Ephemeral + auto-expiring (no table, no history,
-// no HTTP per stroke — the SDK collapses rapid upserts to the latest payload).
+// Canvas over Presence, on the shared Realtime socket. Socket presence is keyed by
+// the sender's user id, so the DRAWER carries strokes in its OWN user presence;
+// guessers subscribe to presences.<drawerId>. We keep the liveness fields
+// (roomId/role/nickname) in the metadata too, so the roster still sees the drawer
+// as online while drawing. Ephemeral, auto-expiring, no table, no HTTP per stroke.
 // ----------------------------------------------------------------------------
-export function makeCanvasBroadcaster(roomId: string) {
-  const presenceId = presenceIds.canvas(roomId);
+export function makeCanvasBroadcaster(uid: string, roomId: string, nickname: string) {
   let seq = 0;
   let clearVersion = 0;
 
   const push = (segs: Seg[], clear = false) => {
     seq += 1;
     if (clear) clearVersion += 1;
-    // Encode strokes as a JSON string so nested point arrays survive the
-    // presence-metadata round-trip intact.
+    // strokes JSON-stringified so nested point arrays survive the round-trip.
     realtime
       .upsertPresence({
-        presenceId,
-        status: "drawing",
-        metadata: { seq, clearVersion, d: JSON.stringify(segs) },
-        permissions: usersRW(),
+        presenceId: uid,
+        status: "online",
+        metadata: { roomId, role: "drawer", nickname, seq, clearVersion, d: JSON.stringify(segs) },
+        permissions: selfPerms(uid),
       })
       .catch(() => {});
   };
@@ -61,7 +64,7 @@ export function makeCanvasBroadcaster(roomId: string) {
 }
 
 export function subscribeCanvas(
-  roomId: string,
+  drawerId: string,
   handlers: { apply: (segs: Seg[]) => void; clear: () => void },
 ): () => void {
   let lastSeq = 0;
@@ -70,7 +73,7 @@ export function subscribeCanvas(
   let closed = false;
 
   realtime
-    .subscribe(channels.canvasPresence(roomId), (evt: any) => {
+    .subscribe(channels.drawerPresence(drawerId), (evt: any) => {
       const meta = readMeta(evt.payload);
       if (!meta) return;
       if ((meta.clearVersion ?? 0) > lastClear) {
