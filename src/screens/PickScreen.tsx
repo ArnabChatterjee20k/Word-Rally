@@ -3,18 +3,16 @@ import { bevel, color, displayTitle, edge, font } from "../theme.ts";
 import { pickWordChoices } from "../data.ts";
 import { call } from "../lib/game.ts";
 import type { Room } from "../lib/types.ts";
-import type { Role } from "../App.tsx";
 import { Button } from "../components/Button.tsx";
 import { useToast } from "../components/Toast.tsx";
 
 export function PickScreen({
   room,
-  role,
+  me,
   nameOf,
 }: {
   room: Room;
   me: string;
-  role: Role;
   nameOf: (uid: string) => string;
 }) {
   const toast = useToast();
@@ -23,7 +21,9 @@ export function PickScreen({
   // Fresh suggestions each pick turn (stable within the turn).
   const choices = useMemo(() => pickWordChoices(), [room.turnIndex]);
 
-  const isPicker = role === "picker";
+  // Decide by pickerId directly — with 2 players the picker is also the drawer,
+  // so the derived role would be "drawer" and hide the picker UI.
+  const isPicker = me === room.pickerId;
 
   const submit = async (word: string) => {
     const w = word.trim();

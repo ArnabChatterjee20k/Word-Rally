@@ -95,7 +95,7 @@ function Game() {
     content = (
       <LobbyScreen room={room} players={players} me={me} online={online} onLeave={leaveRoom} />
     );
-  else if (room.status === "pick") content = <PickScreen room={room} me={me} role={role} nameOf={nameOf} />;
+  else if (room.status === "pick") content = <PickScreen room={room} me={me} nameOf={nameOf} />;
   else if (room.status === "play")
     content = (
       <PlayScreen
