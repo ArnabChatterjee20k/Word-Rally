@@ -11,8 +11,8 @@ const ls = (k: string): string | null => {
 };
 
 export const CONFIG = {
-  endpoint: ls("wr_endpoint") || "https://<YOUR_SELF_HOSTED_HOST>/v1",
-  projectId: ls("wr_project") || "wordrally",
+  endpoint: ls("wr_endpoint") || "https://fra.cloud.appwrite.io/v1",
+  projectId: ls("wr_project") || "69df74c0000a309ef8af",
   dbId: "wordrally",
   functionId: "game",
   tables: {
