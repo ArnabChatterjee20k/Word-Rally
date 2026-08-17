@@ -1,0 +1,21 @@
+{
+  "name": "word-rally",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "module": "src/index.tsx",
+  "scripts": {
+    "dev": "bun ./index.html",
+    "start": "bun ./index.html",
+    "build": "bun build ./index.html --outdir dist --minify"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "typescript": "^5.6.0"
+  }
+}

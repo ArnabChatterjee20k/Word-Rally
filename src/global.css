@@ -1,0 +1,62 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: #7a8aba;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #21242e;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: #3d4f97;
+  font-weight: 700;
+  text-decoration: none;
+}
+a:hover {
+  color: #e48600;
+}
+
+input,
+select,
+button {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@keyframes pulseArrow {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: #21242e;
+  color: #fff;
+  font-family: Silkscreen, monospace;
+  font-size: 11px;
+  padding: 10px 16px;
+  border-radius: 4px;
+  border: 2px solid #ecab37;
+  z-index: 50;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+.toast.show {
+  opacity: 1;
+}
