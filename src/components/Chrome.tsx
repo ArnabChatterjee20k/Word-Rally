@@ -1,12 +1,14 @@
 import { bevel, color, dots, edge, font } from "../theme.ts";
-import { MATCH, PLAYERS, SCREENS, type Screen } from "../data.ts";
+import { PHASES } from "../data.ts";
+import type { Room, Status } from "../lib/types.ts";
 import { useToast } from "./Toast.tsx";
 
-export function Header() {
+export function Header({ room }: { room: Room | null }) {
   const toast = useToast();
+  const code = room?.code ?? "----";
   const copy = () => {
-    if (navigator.clipboard) navigator.clipboard.writeText(MATCH.roomCode).catch(() => {});
-    toast(`Room code ${MATCH.roomCode} copied`);
+    if (room && navigator.clipboard) navigator.clipboard.writeText(room.code).catch(() => {});
+    if (room) toast(`Room code ${room.code} copied`);
   };
   return (
     <div
@@ -66,10 +68,11 @@ export function Header() {
             color: color.red,
           }}
         >
-          {MATCH.roomCode}
+          {code}
         </div>
         <button
           onClick={copy}
+          disabled={!room}
           style={{
             background: color.gold,
             color: color.ink,
@@ -80,7 +83,8 @@ export function Header() {
             ...bevel(edge.gold),
             borderRadius: 2,
             padding: "5px 10px",
-            cursor: "pointer",
+            cursor: room ? "pointer" : "default",
+            opacity: room ? 1 : 0.5,
             minHeight: 28,
           }}
         >
@@ -91,7 +95,8 @@ export function Header() {
   );
 }
 
-export function Tabs({ screen, go }: { screen: Screen; go: (s: Screen) => void }) {
+/** Read-only phase indicator — replaces the free tab bar (screen = room.status). */
+export function PhaseBar({ status }: { status: Status }) {
   return (
     <div
       style={{
@@ -121,35 +126,42 @@ export function Tabs({ screen, go }: { screen: Screen; go: (s: Screen) => void }
           WORD RALLY
         </div>
       </div>
-      {SCREENS.map(([k, label]) => {
-        const active = screen === k;
+      {PHASES.map(([k, label]) => {
+        const active = status === k;
         return (
-          <button
+          <div
             key={k}
-            onClick={() => go(k)}
             style={{
               background: active ? color.royal : "transparent",
-              color: active ? color.white : "#e48600",
-              border: 0,
+              color: active ? color.white : "#6a6f92",
               borderBottom: `3px solid ${active ? color.orange : "transparent"}`,
               fontSize: 13,
               fontWeight: 700,
               letterSpacing: ".5px",
               textTransform: "uppercase",
               padding: "8px 10px",
-              cursor: "pointer",
               minHeight: 34,
+              display: "flex",
+              alignItems: "center",
             }}
           >
             {label}
-          </button>
+          </div>
         );
       })}
     </div>
   );
 }
 
-export function StatusBar() {
+export function StatusBar({
+  room,
+  nameOf,
+  onlineCount,
+}: {
+  room: Room;
+  nameOf: (uid: string) => string;
+  onlineCount: number;
+}) {
   const div = <span style={{ color: color.inkSoft }}>|</span>;
   return (
     <div
@@ -168,17 +180,17 @@ export function StatusBar() {
       }}
     >
       <span>
-        ROUND {MATCH.round} / {MATCH.totalRounds}
+        ROUND {Math.max(1, room.round)} / {room.settings.totalRounds}
       </span>
       {div}
-      <span>DRAWER: {MATCH.drawerName}</span>
+      <span>DRAWER: {nameOf(room.drawerId) || "—"}</span>
       {div}
-      <span>GUESSER: {MATCH.guesserName}</span>
+      <span>GUESSER: {nameOf(room.guesserId) || "—"}</span>
       {div}
-      <span>{PLAYERS.length} PLAYERS</span>
-      <span style={{ marginLeft: "auto", color: color.royal }}>
-        TURN ORDER ROTATES CLOCKWISE
+      <span>
+        {room.turnOrder.length} PLAYERS{onlineCount ? ` · ${onlineCount} ONLINE` : ""}
       </span>
+      <span style={{ marginLeft: "auto", color: color.royal }}>TURN ORDER ROTATES CLOCKWISE</span>
     </div>
   );
 }
@@ -210,11 +222,27 @@ export function Footer() {
         ESRB — PRIVACY CERTIFIED
       </div>
       <div style={{ fontSize: 10, color: color.sky, lineHeight: 1.3 }}>
-        Word Rally — concept prototype. Round-robin picker / drawer / guesser rotation.
+        Word Rally — realtime party game on Appwrite. Round-robin picker / drawer / guesser.
       </div>
       <a href="#" style={{ marginLeft: "auto", fontSize: 10, color: color.sky }}>
         Privacy Policy
       </a>
+    </div>
+  );
+}
+
+export function Splash({ text }: { text: string }) {
+  return (
+    <div
+      style={{
+        padding: "60px 20px",
+        textAlign: "center",
+        fontFamily: font.pixel,
+        fontSize: 12,
+        color: color.ink,
+      }}
+    >
+      {text}
     </div>
   );
 }

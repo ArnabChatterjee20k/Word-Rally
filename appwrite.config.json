@@ -1,0 +1,134 @@
+{
+  "projectId": "wordrally",
+  "projectName": "Word Rally",
+  "endpoint": "https://<YOUR_SELF_HOSTED_HOST>/v1",
+  "settings": {
+    "services": {
+      "account": true,
+      "databases": true,
+      "functions": true,
+      "realtime": true
+    },
+    "auth": {
+      "methods": {
+        "anonymous": true
+      },
+      "security": {
+        "sessionsLimit": 10
+      }
+    }
+  },
+  "functions": [
+    {
+      "$id": "game",
+      "name": "game",
+      "enabled": true,
+      "logging": true,
+      "runtime": "node-22",
+      "scopes": ["databases.read", "databases.write"],
+      "events": [],
+      "schedule": "",
+      "timeout": 15,
+      "entrypoint": "src/main.js",
+      "commands": "npm install",
+      "ignore": "node_modules\n.env",
+      "path": "functions/game"
+    }
+  ],
+  "tablesDB": [
+    {
+      "$id": "wordrally",
+      "name": "Word Rally",
+      "enabled": true
+    }
+  ],
+  "tables": [
+    {
+      "$id": "rooms",
+      "databaseId": "wordrally",
+      "name": "rooms",
+      "enabled": true,
+      "rowSecurity": true,
+      "$permissions": [],
+      "columns": [
+        { "key": "code", "type": "varchar", "required": true, "size": 8 },
+        { "key": "status", "type": "varchar", "required": true, "size": 16 },
+        { "key": "hostId", "type": "varchar", "required": true, "size": 64 },
+        { "key": "maxPlayers", "type": "integer", "required": false },
+        { "key": "settingsJson", "type": "varchar", "required": false, "size": 1000 },
+        { "key": "turnOrderJson", "type": "varchar", "required": false, "size": 4000 },
+        { "key": "scoresJson", "type": "varchar", "required": false, "size": 4000 },
+        { "key": "turnIndex", "type": "integer", "required": false },
+        { "key": "round", "type": "integer", "required": false },
+        { "key": "pickerId", "type": "varchar", "required": false, "size": 64 },
+        { "key": "drawerId", "type": "varchar", "required": false, "size": 64 },
+        { "key": "guesserId", "type": "varchar", "required": false, "size": 64 },
+        { "key": "maskedWord", "type": "varchar", "required": false, "size": 64 },
+        { "key": "tier", "type": "varchar", "required": false, "size": 16 },
+        { "key": "points", "type": "integer", "required": false },
+        { "key": "revealWord", "type": "varchar", "required": false, "size": 32 },
+        { "key": "turnStartedAt", "type": "datetime", "required": false },
+        { "key": "turnEndsAt", "type": "datetime", "required": false }
+      ],
+      "indexes": [
+        { "key": "code_unique", "type": "unique", "columns": ["code"], "orders": ["ASC"] }
+      ]
+    },
+    {
+      "$id": "players",
+      "databaseId": "wordrally",
+      "name": "players",
+      "enabled": true,
+      "rowSecurity": true,
+      "$permissions": [],
+      "columns": [
+        { "key": "roomId", "type": "varchar", "required": true, "size": 64 },
+        { "key": "userId", "type": "varchar", "required": true, "size": 64 },
+        { "key": "nickname", "type": "varchar", "required": true, "size": 32 },
+        { "key": "color", "type": "varchar", "required": false, "size": 16 },
+        { "key": "ready", "type": "boolean", "required": false },
+        { "key": "isHost", "type": "boolean", "required": false }
+      ],
+      "indexes": [
+        { "key": "by_room", "type": "key", "columns": ["roomId"], "orders": ["ASC"] },
+        { "key": "room_user", "type": "unique", "columns": ["roomId", "userId"], "orders": ["ASC", "ASC"] }
+      ]
+    },
+    {
+      "$id": "secretWords",
+      "databaseId": "wordrally",
+      "name": "secretWords",
+      "enabled": true,
+      "rowSecurity": true,
+      "$permissions": [],
+      "columns": [
+        { "key": "roomId", "type": "varchar", "required": true, "size": 64 },
+        { "key": "turnIndex", "type": "integer", "required": false },
+        { "key": "word", "type": "varchar", "required": true, "size": 32 },
+        { "key": "tier", "type": "varchar", "required": false, "size": 16 },
+        { "key": "points", "type": "integer", "required": false }
+      ],
+      "indexes": [
+        { "key": "by_room", "type": "key", "columns": ["roomId"], "orders": ["ASC"] }
+      ]
+    },
+    {
+      "$id": "messages",
+      "databaseId": "wordrally",
+      "name": "messages",
+      "enabled": true,
+      "rowSecurity": false,
+      "$permissions": ["create(\"users\")", "read(\"users\")"],
+      "columns": [
+        { "key": "roomId", "type": "varchar", "required": true, "size": 64 },
+        { "key": "userId", "type": "varchar", "required": false, "size": 64 },
+        { "key": "nickname", "type": "varchar", "required": false, "size": 32 },
+        { "key": "kind", "type": "varchar", "required": false, "size": 16 },
+        { "key": "text", "type": "varchar", "required": false, "size": 280 }
+      ],
+      "indexes": [
+        { "key": "by_room", "type": "key", "columns": ["roomId"], "orders": ["ASC"] }
+      ]
+    }
+  ]
+}

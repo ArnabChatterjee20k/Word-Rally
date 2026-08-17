@@ -1,58 +1,61 @@
-import { color, type ChatKind } from "./theme.ts";
+import { color } from "./theme.ts";
+import type { Status } from "./lib/types.ts";
+import { scoreForWord } from "./lib/score.ts";
+import bank from "./words.json";
 
-export type Player = { name: string; color: string; score: number };
-
-export const PLAYERS: Player[] = [
-  { name: "ArcadeKid", color: "#e60012", score: 480 },
-  { name: "PixelPam", color: "#f68d1f", score: 640 },
-  { name: "Bit_Rot", color: "#206479", score: 300 },
-  { name: "NoodleFox", color: "#ecab37", score: 520 },
-  { name: "Quibble", color: "#acace7", score: 250 },
-  { name: "MegaTron88", color: "#3d4f97", score: 410 },
-  { name: "SockPuppet", color: "#a7282b", score: 180 },
-  { name: "Zed", color: "#60619c", score: 360 },
-];
-
-export const MATCH = {
-  roomCode: "K7QX",
-  round: 3,
-  totalRounds: 5,
-  maxPlayers: 16,
-  pickerName: "PixelPam",
-  drawerName: "ArcadeKid",
-  guesserName: "NoodleFox",
-  revealWord: "ROCKET SHIP",
-  maskedWord: "_ _ _ _ _ _   _ _ _ _",
-  answer: "rocket ship",
-  championName: "PixelPam",
-  championScore: 640,
-  championGuesses: 7,
-} as const;
-
-export type Screen =
-  | "landing"
-  | "lobby"
-  | "pick"
-  | "play"
-  | "score"
-  | "winner"
-  | "chat";
-
-export const SCREENS: [Screen, string][] = [
-  ["landing", "Join"],
+/** Phases shown in the read-only phase bar (screen is driven by room.status). */
+export const PHASES: [Status, string][] = [
   ["lobby", "Lobby"],
-  ["pick", "Pick Word"],
+  ["pick", "Pick"],
   ["play", "Play"],
-  ["score", "Round End"],
+  ["score", "Score"],
   ["winner", "Winner"],
-  ["chat", "Chat"],
 ];
 
-export const WORD_CHOICES = [
-  { word: "KITE", tier: "EASY", points: 60, letters: 4, hint: "object", bg: color.sky },
-  { word: "ROCKET SHIP", tier: "MEDIUM", points: 120, letters: 10, hint: "vehicle", bg: color.lavender },
-  { word: "STAGE FRIGHT", tier: "HARD", points: 200, letters: 11, hint: "abstract", bg: color.grid },
-] as const;
+export type Choice = {
+  word: string;
+  tier: string;
+  points: number;
+  letters: number;
+  hint: string;
+  bg: string;
+};
+
+const TIER_BG: Record<string, string> = {
+  EASY: color.sky,
+  MEDIUM: color.lavender,
+  HARD: color.grid,
+};
+
+function toChoice(word: string, hint: string): Choice {
+  const { tier, points } = scoreForWord(word);
+  return {
+    word,
+    tier,
+    points,
+    letters: word.replace(/[^a-zA-Z]/g, "").length,
+    hint,
+    bg: TIER_BG[tier] ?? color.sky,
+  };
+}
+
+/** Draw one EASY / MEDIUM / HARD suggestion from the JSON word bank.
+ *  Points/tier are computed the same way the server scores, so the cards match. */
+export function pickWordChoices(rand: () => number = Math.random): Choice[] {
+  const all = bank.words.map((w) => toChoice(w.word, w.hint));
+  const draw = (pool: Choice[]) => pool[Math.floor(rand() * pool.length)];
+  const out: Choice[] = [];
+  for (const tier of ["EASY", "MEDIUM", "HARD"]) {
+    const pool = all.filter((c) => c.tier === tier && !out.includes(c));
+    if (pool.length) out.push(draw(pool)!);
+  }
+  while (out.length < 3) {
+    const c = draw(all.filter((x) => !out.includes(x))!);
+    if (!c) break;
+    out.push(c);
+  }
+  return out;
+}
 
 export const SWATCHES = [
   "#21242e", "#e60012", "#f68d1f", "#ecab37",
@@ -65,16 +68,14 @@ export const BRUSHES: [string, number][] = [
   ["FAT", 14],
 ];
 
-export type ChatMsg = { who: string; text: string; kind: ChatKind };
-
-export const INITIAL_CHAT: ChatMsg[] = [
-  { who: "Bit_Rot", text: "is it a vehicle?", kind: "chat" },
-  { who: "NoodleFox", text: "ROCKET", kind: "wrong" },
-  { who: "SYSTEM", text: "NoodleFox is close!", kind: "sys" },
-  { who: "NoodleFox", text: "ROCKET SHIP", kind: "right" },
-  { who: "Quibble", text: "nice one", kind: "chat" },
+/** Player avatar palette + a stable pick from a seed (userId). */
+export const PALETTE = [
+  "#e60012", "#f68d1f", "#206479", "#ecab37",
+  "#acace7", "#3d4f97", "#a7282b", "#60619c",
 ];
 
-export function sortedPlayers(): Player[] {
-  return PLAYERS.slice().sort((a, b) => b.score - a.score);
+export function pickColor(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return PALETTE[h % PALETTE.length]!;
 }
