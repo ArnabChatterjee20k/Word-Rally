@@ -335,6 +335,54 @@ const actions = {
     });
     return { ok: true };
   },
+
+  async endMatch(db, uid, body) {
+    const room = await loadRoom(db, body.roomId);
+    if (room.hostId !== uid) throw new Error("Only the host can end the match");
+    if (room.status === "lobby") throw new Error("No match in progress");
+    await db.updateRow({ databaseId: DB, tableId: T.rooms, rowId: room.$id, data: { status: "winner" } });
+    return { ok: true };
+  },
+
+  async leaveRoom(db, uid, body) {
+    const room = await loadRoom(db, body.roomId);
+
+    // Remove the player's own row (roster + presence cleanup).
+    const pl = await db.listRows({
+      databaseId: DB,
+      tableId: T.players,
+      queries: [Query.equal("roomId", room.$id), Query.equal("userId", uid), Query.limit(1)],
+    });
+    const row = pl.rows?.[0] ?? pl.documents?.[0];
+    if (row) await db.deleteRow({ databaseId: DB, tableId: T.players, rowId: row.$id }).catch(() => {});
+
+    let order = json(room.turnOrderJson) || [];
+    const scores = json(room.scoresJson) || {};
+    const data = {};
+
+    if (room.status === "lobby") {
+      // Safe to fully remove before the match starts.
+      order = order.filter((id) => id !== uid);
+      delete scores[uid];
+      data.turnOrderJson = JSON.stringify(order);
+      data.scoresJson = JSON.stringify(scores);
+    } else {
+      // Mid-match: keep turnOrder/scores intact (ids must stay consistent with the
+      // stored roles). End the match if a turn actor leaves or too few remain.
+      const remaining = order.filter((id) => id !== uid).length;
+      if (uid === room.pickerId || uid === room.drawerId || remaining < 2) data.status = "winner";
+    }
+
+    // Hand off host if the host left.
+    if (uid === room.hostId) {
+      const pool = (data.turnOrderJson ? JSON.parse(data.turnOrderJson) : order).filter((id) => id !== uid);
+      if (pool.length) data.hostId = pool[0];
+    }
+
+    if (Object.keys(data).length)
+      await db.updateRow({ databaseId: DB, tableId: T.rooms, rowId: room.$id, data });
+    return { ok: true };
+  },
 };
 
 async function endTurnInternal(db, room) {

@@ -9,7 +9,9 @@ export type Action =
   | "submitGuess"
   | "endTurn"
   | "nextTurn"
-  | "rematch";
+  | "rematch"
+  | "endMatch"
+  | "leaveRoom";
 
 /** RPC to the server-authoritative `game` Appwrite Function. */
 export async function call<T = any>(action: Action, payload: Record<string, unknown> = {}): Promise<T> {

@@ -182,6 +182,38 @@ async function main() {
   r2 = await getRoom(D, two.roomId);
   check("2p: match reaches winner", r2.status === "winner");
 
+  console.log("→ host endMatch + leaveRoom…");
+  const H = await guest("HostEnd");
+  const P2 = await guest("P2");
+  const P3 = await guest("P3");
+  const em = await call(H, "createRoom", { nickname: "HostEnd", settings: { totalRounds: 5, turnSeconds: 120 } });
+  await call(P2, "joinRoom", { code: em.code, nickname: "P2" });
+  await call(P3, "joinRoom", { code: em.code, nickname: "P3" });
+  await call(H, "startMatch", { roomId: em.roomId });
+  let emRej = false;
+  try {
+    await call(P2, "endMatch", { roomId: em.roomId });
+  } catch {
+    emRej = true;
+  }
+  check("endMatch by non-host rejected", emRej);
+  await call(H, "endMatch", { roomId: em.roomId });
+  check("host endMatch → winner", (await getRoom(H, em.roomId)).status === "winner");
+
+  const L1 = await guest("L1");
+  const L2 = await guest("L2");
+  const L3 = await guest("L3");
+  const lr = await call(L1, "createRoom", { nickname: "L1" });
+  await call(L2, "joinRoom", { code: lr.code, nickname: "L2" });
+  await call(L3, "joinRoom", { code: lr.code, nickname: "L3" });
+  check("lobby has 3 before leave", JSON.parse((await getRoom(L2, lr.roomId)).turnOrderJson).length === 3);
+  await call(L1, "leaveRoom", { roomId: lr.roomId }); // host leaves in lobby
+  const afterLeave = await getRoom(L2, lr.roomId);
+  check(
+    "host leaves lobby → removed + host reassigned",
+    JSON.parse(afterLeave.turnOrderJson).length === 2 && afterLeave.hostId !== L1.uid,
+  );
+
   console.log(`\n${failed === 0 ? "✅" : "❌"} E2E: ${passed} passed, ${failed} failed`);
   if (failed > 0) throw new Error(`${failed} checks failed`);
 }

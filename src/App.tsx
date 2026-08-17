@@ -3,6 +3,7 @@ import { color, dots } from "./theme.ts";
 import { pickColor } from "./data.ts";
 import type { Player, Room } from "./lib/types.ts";
 import { ensureSession } from "./lib/session.ts";
+import { call } from "./lib/game.ts";
 import { useRoom } from "./lib/useRoom.ts";
 import { usePresence } from "./lib/presence.ts";
 import { ToastProvider } from "./components/Toast.tsx";
@@ -77,12 +78,17 @@ function Game() {
     setRoomId(id);
   };
   const leaveRoom = () => {
+    if (roomId && me) call("leaveRoom", { roomId }).catch(() => {});
     try {
       localStorage.removeItem("wr_roomId");
     } catch {
       /* noop */
     }
     setRoomId(null);
+  };
+
+  const endMatch = () => {
+    if (roomId) call("endMatch", { roomId }).catch(() => {});
   };
 
   const onlineCount = Object.keys(online).length;
@@ -118,7 +124,17 @@ function Game() {
         {room && (
           <>
             <PhaseBar status={room.status} />
-            <StatusBar room={room} nameOf={nameOf} onlineCount={onlineCount} />
+            <StatusBar
+              room={room}
+              nameOf={nameOf}
+              onlineCount={onlineCount}
+              onLeave={leaveRoom}
+              onEndMatch={
+                me === room.hostId && room.status !== "lobby" && room.status !== "winner"
+                  ? endMatch
+                  : undefined
+              }
+            />
           </>
         )}
         {content}

@@ -157,12 +157,28 @@ export function StatusBar({
   room,
   nameOf,
   onlineCount,
+  onLeave,
+  onEndMatch,
 }: {
   room: Room;
   nameOf: (uid: string) => string;
   onlineCount: number;
+  onLeave: () => void;
+  onEndMatch?: () => void;
 }) {
   const div = <span style={{ color: color.inkSoft }}>|</span>;
+  const ctrlBtn = (bg: string): React.CSSProperties => ({
+    background: bg,
+    color: color.white,
+    border: 0,
+    borderRadius: 2,
+    padding: "4px 9px",
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: ".5px",
+    cursor: "pointer",
+    minHeight: 26,
+  });
   return (
     <div
       style={{
@@ -190,7 +206,16 @@ export function StatusBar({
       <span>
         {room.turnOrder.length} PLAYERS{onlineCount ? ` · ${onlineCount} ONLINE` : ""}
       </span>
-      <span style={{ marginLeft: "auto", color: color.royal }}>TURN ORDER ROTATES CLOCKWISE</span>
+      <span style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+        {onEndMatch && (
+          <button onClick={onEndMatch} style={ctrlBtn(color.red)} title="End the match now (host)">
+            END MATCH
+          </button>
+        )}
+        <button onClick={onLeave} style={ctrlBtn(color.ink)} title="Leave this room">
+          LEAVE ✕
+        </button>
+      </span>
     </div>
   );
 }
