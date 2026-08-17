@@ -4,15 +4,21 @@ import {
 } from "appwrite";
 import { CONFIG } from "../config.ts";
 
+// Main client: carries the anonymous SESSION, used for all HTTP (Account, TablesDB,
+// Functions, presence seed).
 export const client = new Client().setEndpoint(CONFIG.endpoint).setProject(CONFIG.projectId);
+
+// Realtime client: carries a JWT (minted from the session) instead of the cookie —
+// a connection must be JWT-authorized to SEND presence over the socket, and a client
+// can't hold both a cookie and a JWT in one request. So realtime gets its own client.
+export const rtClient = new Client().setEndpoint(CONFIG.endpoint).setProject(CONFIG.projectId);
 
 export const account = new Account(client);
 export const tablesDB = new TablesDB(client);
 export const functions = new Functions(client);
 export const presences = new Presences(client);
 
-// One shared Realtime connection: DB subscriptions AND presence (liveness + drawing)
-// all ride this single socket. Presence sent over it auto-expires on disconnect.
-export const realtime = new Realtime(client);
+// One shared Realtime socket for DB subscriptions AND presence (liveness + drawing).
+export const realtime = new Realtime(rtClient);
 
 export { ID, Query, Permission, Role, Channel };

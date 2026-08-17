@@ -8,12 +8,17 @@ import { channels, presenceIds } from "../config.ts";
 // the 760x430 canvas backing-store space.
 export type Seg = { c: string; w: number; e: boolean; pts: [number, number][] };
 
+// Presence realtime payloads vary by shape: metadata may be an object or a JSON
+// string, may sit at payload.metadata or payload.data.metadata, or the payload may
+// already BE the metadata. Normalize all of those to a plain object.
 function readMeta(payload: any): any | null {
-  const m = payload?.metadata;
-  if (!m) return null;
+  if (!payload) return null;
+  let m = payload.metadata ?? payload.data?.metadata;
+  if (m === undefined && (payload.seq !== undefined || payload.d !== undefined)) m = payload;
+  if (m == null) return null;
   if (typeof m === "string") {
     try {
-      return JSON.parse(m);
+      m = JSON.parse(m);
     } catch {
       return null;
     }
@@ -37,8 +42,15 @@ export function makeCanvasBroadcaster(roomId: string) {
   const push = (segs: Seg[], clear = false) => {
     seq += 1;
     if (clear) clearVersion += 1;
+    // Encode strokes as a JSON string so nested point arrays survive the
+    // presence-metadata round-trip intact.
     realtime
-      .upsertPresence({ presenceId, status: "drawing", metadata: { seq, clearVersion, segs }, permissions: usersRW() })
+      .upsertPresence({
+        presenceId,
+        status: "drawing",
+        metadata: { seq, clearVersion, d: JSON.stringify(segs) },
+        permissions: usersRW(),
+      })
       .catch(() => {});
   };
 
@@ -67,7 +79,13 @@ export function subscribeCanvas(
       }
       if ((meta.seq ?? 0) > lastSeq) {
         lastSeq = meta.seq;
-        if (Array.isArray(meta.segs) && meta.segs.length) handlers.apply(meta.segs);
+        let segs: Seg[] = [];
+        try {
+          segs = meta.d ? JSON.parse(meta.d) : Array.isArray(meta.segs) ? meta.segs : [];
+        } catch {
+          segs = [];
+        }
+        if (segs.length) handlers.apply(segs);
       }
     })
     .then((s) => {
