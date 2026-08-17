@@ -9,31 +9,24 @@ Presences). Backend verified live by `scripts/e2e.ts` (44/44).
 
 ---
 
-## 1. Roles & the three clients
+## 1. One client, one anonymous session
 
-Two Appwrite `Client`s, because a request may carry a session **or** a JWT, never both:
-
-| Client | Auth | Used for |
-|--------|------|----------|
-| `client` (`lib/appwrite.ts`) | anonymous **session** cookie | HTTP: `Account`, `TablesDB`, `Functions`, presence seed |
-| `rtClient` | **JWT** (minted from the session) | the shared `Realtime` socket (subscribe + presence) |
-
-**Why the split:** the realtime connection must be JWT-authorized to *send* presence over
-the socket; a client carrying both a cookie and a JWT is rejected
-(`JWT and cookie used in the same request`). So realtime gets its own JWT-only client.
+A single Appwrite `Client` (`lib/appwrite.ts`) carries the anonymous **session** cookie and
+is used for everything — HTTP (`Account`, `TablesDB`, `Functions`, presence seed) **and** the
+`Realtime` socket. The socket authenticates with the same session, so both subscriptions
+and presence are scoped to the anonymous user. No JWT, no server role — the client is only
+ever itself.
 
 ### Session bootstrap (`lib/session.ts`, called once in `App`)
 
 ```
 ensureSession():
-  account.get()  ── fail → account.createAnonymousSession()   // guest identity
-  jwt = account.createJWT()  →  rtClient.setJWT(jwt)           // authorize the socket
-  setInterval(refresh jwt, 14 min)                            // JWTs live ~15 min
+  account.get()  ── fail → account.createAnonymousSession()   // guest identity (cookie)
   return uid
 ```
 
-Only after this resolves does `App` set `me`, so the JWT is in place before any
-subscription opens.
+`App` sets `me` only after this resolves, so the session is in place before any
+subscription opens; the Realtime socket then authenticates with that session on connect.
 
 ---
 
@@ -101,9 +94,11 @@ realtime.subscribe(                                                             
 
 ## 4. Presence — over the same socket (`lib/presence.ts`)
 
-Presence is **sent over the JWT-authorized realtime connection** via
+Presence is **sent over the session-authenticated realtime socket** via
 `realtime.upsertPresence({ presenceId, status, metadata, permissions })`. No `expiresAt`,
-no heartbeat — it auto-expires when the tab disconnects. Received via
+no heartbeat — it auto-expires when the tab disconnects. (The socket is already
+authenticated by the anonymous session from earlier subscriptions, so the upsert is
+authorized without a JWT.) Received via
 `realtime.subscribe(Channel.presence(id) | Channel.presences(), cb)`.
 
 ### Liveness (`usePresence`)
