@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { bevel, color, displayTitle, edge, font } from "../theme.ts";
+import { bevel, color, displayTitle, edge } from "../theme.ts";
 import { pickColor } from "../data.ts";
+import { Mascot } from "../components/Mascot.tsx";
 import { call } from "../lib/game.ts";
 import { Panel } from "../components/Panel.tsx";
 import { Button } from "../components/Button.tsx";
@@ -105,14 +106,11 @@ export function LandingScreen({ me, onEnter }: { me: string; onEnter: (roomId: s
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontFamily: font.pixel,
-            fontSize: 10,
-            textAlign: "center",
-            color: color.royal,
-            padding: 10,
+            overflow: "hidden",
+            flex: "0 0 auto",
           }}
         >
-          MASCOT ART GOES HERE
+          <Mascot size={92} />
         </div>
       </div>
 
