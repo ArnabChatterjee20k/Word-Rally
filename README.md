@@ -107,6 +107,18 @@ bunx tsc --noEmit                            # typecheck
 bun build ./index.html --outdir dist         # production bundle
 ```
 
+### Live end-to-end (against the deployed function)
+
+`scripts/e2e.ts` drives a full match with three anonymous guests through the deployed
+`game` function and asserts every server-authority guarantee. Sessions are minted with a
+short-lived ephemeral API key (the only way to hold a session outside a browser):
+
+```bash
+KEY=$(bunx appwrite-cli project create-ephemeral-key \
+  --scopes sessions.write --duration 3600 --json --show-secrets --force | bun -e 'process.stdin.text?.().then(t=>console.log(JSON.parse(t).secret))')
+WR_KEY="$KEY" bun run scripts/e2e.ts     # → 41 passed, 0 failed
+```
+
 ### End-to-end (two browser windows = two guests)
 
 1. Window **A**: enter a nickname → **Create Room** → note the 4-letter code.
