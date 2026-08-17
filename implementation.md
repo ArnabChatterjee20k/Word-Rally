@@ -163,10 +163,21 @@ which the server re-validates.
 |-------|--------|-------|-------|
 | `rooms` | function | users | `status`, roles, `scoresJson`, `turnOrderJson`, `turnEndsAt`, masked/reveal word |
 | `players` | owner | users | nickname/color/ready only — **no score** |
-| `secretWords` | function | **drawer only** | plaintext word |
-| `messages` | function (verdicts) + owner (chat) | users | guess feed |
+| `secretWords` | function | **drawer only** | plaintext word (purged at match end) |
+| `messages` | function (verdicts) + owner (chat) | users | guess feed (purged at match end) |
+| `results` | function | users | persistent match summary (leaderboard, words, guess stats) |
 
 Drawing is **not** a table — it lives entirely in presence metadata.
+
+### End-of-match archive
+
+Whenever the game function moves a room to `winner` (`nextTurn` final / `endMatch` /
+a departure via `leaveRoom`), it runs `archiveMatch(room)` once (guarded by
+`rooms.resultId`): it writes a `results` row — champion, sorted standings, the words
+played, and correct/total guess counts — then **deletes the bulky transient data**
+(`messages` + `secretWords`) so the DB doesn't accumulate per-turn junk. The Winner screen
+polls `results` for the room and renders "Words this match". (This lives inside `game`
+rather than a separate event-triggered function because the plan caps function count.)
 
 ---
 

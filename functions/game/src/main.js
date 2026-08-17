@@ -17,6 +17,7 @@ const T = {
   players: "players",
   secretWords: "secretWords",
   messages: "messages",
+  results: "results",
 };
 
 const DEFAULTS = { totalRounds: 5, turnSeconds: 80, maxPlayers: 16 };
@@ -62,6 +63,74 @@ function postMessage(db, roomId, kind, who, text) {
 function roleFields(order, turnIndex) {
   const { pickerId, drawerId, guesserId } = rolesForTurn(order, turnIndex);
   return { pickerId, drawerId, guesserId };
+}
+
+const rowsOf = (r) => r.rows || r.documents || [];
+
+async function listAllRoom(db, tableId, roomId) {
+  const out = [];
+  let cursor = null;
+  for (let i = 0; i < 50; i++) {
+    const queries = [Query.equal("roomId", roomId), Query.limit(100)];
+    if (cursor) queries.push(Query.cursorAfter(cursor));
+    const page = rowsOf(await db.listRows({ databaseId: DB, tableId, queries }));
+    out.push(...page);
+    if (page.length < 100) break;
+    cursor = page[page.length - 1].$id;
+  }
+  return out;
+}
+
+// Runs once when a match ends: write a persistent results summary (leaderboard +
+// words played + guess stats), then purge the match's bulky transient data
+// (messages + secret words). Idempotent via rooms.resultId.
+async function archiveMatch(db, room) {
+  if (room.resultId) return;
+  const [players, secrets, msgs] = await Promise.all([
+    listAllRoom(db, T.players, room.$id),
+    listAllRoom(db, T.secretWords, room.$id),
+    listAllRoom(db, T.messages, room.$id),
+  ]);
+  const scores = json(room.scoresJson) || {};
+  const byId = new Map(players.map((p) => [p.userId, p]));
+  const standings = Object.keys(scores)
+    .map((uid) => ({
+      name: byId.get(uid)?.nickname || "Player",
+      color: byId.get(uid)?.color || "#3d4f97",
+      score: scores[uid] || 0,
+    }))
+    .sort((a, b) => b.score - a.score);
+  const words = secrets
+    .slice()
+    .sort((a, b) => (a.turnIndex ?? 0) - (b.turnIndex ?? 0))
+    .map((s) => ({ word: s.word, tier: s.tier, points: s.points }));
+  const correctGuesses = msgs.filter((m) => m.kind === "right").length;
+  const totalGuesses = msgs.filter((m) => m.kind === "right" || m.kind === "wrong").length;
+  const champ = standings[0] || { name: "—", score: 0 };
+  const settings = json(room.settingsJson) || {};
+
+  const result = await db.createRow({
+    databaseId: DB,
+    tableId: T.results,
+    rowId: ID.unique(),
+    data: {
+      roomId: room.$id,
+      code: room.code,
+      endedAt: now().toISOString(),
+      champion: champ.name,
+      championScore: champ.score,
+      totalRounds: settings.totalRounds ?? 0,
+      playerCount: standings.length,
+      standingsJson: JSON.stringify(standings),
+      wordsJson: JSON.stringify(words),
+      correctGuesses,
+      totalGuesses,
+    },
+    permissions: [Permission.read(Role.users())],
+  });
+  await db.updateRow({ databaseId: DB, tableId: T.rooms, rowId: room.$id, data: { resultId: result.$id } });
+  await Promise.all(msgs.map((m) => db.deleteRow({ databaseId: DB, tableId: T.messages, rowId: m.$id }).catch(() => {})));
+  await Promise.all(secrets.map((s) => db.deleteRow({ databaseId: DB, tableId: T.secretWords, rowId: s.$id }).catch(() => {})));
 }
 
 // ---- action handlers -------------------------------------------------------
@@ -292,6 +361,7 @@ const actions = {
         rowId: room.$id,
         data: { status: "winner" },
       });
+      await archiveMatch(db, { ...room, status: "winner" });
       return { status: "winner" };
     }
 
@@ -331,6 +401,7 @@ const actions = {
         scoresJson: JSON.stringify(scores),
         maskedWord: "",
         revealWord: "",
+        resultId: "",
       },
     });
     return { ok: true };
@@ -341,6 +412,7 @@ const actions = {
     if (room.hostId !== uid) throw new Error("Only the host can end the match");
     if (room.status === "lobby") throw new Error("No match in progress");
     await db.updateRow({ databaseId: DB, tableId: T.rooms, rowId: room.$id, data: { status: "winner" } });
+    await archiveMatch(db, { ...room, status: "winner" });
     return { ok: true };
   },
 
@@ -381,6 +453,7 @@ const actions = {
 
     if (Object.keys(data).length)
       await db.updateRow({ databaseId: DB, tableId: T.rooms, rowId: room.$id, data });
+    if (data.status === "winner") await archiveMatch(db, { ...room, ...data });
     return { ok: true };
   },
 };

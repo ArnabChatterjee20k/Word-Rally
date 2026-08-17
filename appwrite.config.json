@@ -154,6 +154,12 @@
                     "key": "turnEndsAt",
                     "type": "datetime",
                     "required": false
+                },
+                {
+                    "key": "resultId",
+                    "type": "varchar",
+                    "required": false,
+                    "size": 64
                 }
             ],
             "indexes": [
@@ -340,6 +346,30 @@
                         "ASC"
                     ]
                 }
+            ]
+        },
+        {
+            "$id": "results",
+            "databaseId": "wordrally",
+            "name": "results",
+            "enabled": true,
+            "rowSecurity": true,
+            "$permissions": [],
+            "columns": [
+                { "key": "roomId", "type": "varchar", "required": true, "size": 64 },
+                { "key": "code", "type": "varchar", "required": false, "size": 8 },
+                { "key": "endedAt", "type": "datetime", "required": false },
+                { "key": "champion", "type": "varchar", "required": false, "size": 32 },
+                { "key": "championScore", "type": "integer", "required": false },
+                { "key": "totalRounds", "type": "integer", "required": false },
+                { "key": "playerCount", "type": "integer", "required": false },
+                { "key": "standingsJson", "type": "varchar", "required": false, "size": 4000 },
+                { "key": "wordsJson", "type": "varchar", "required": false, "size": 4000 },
+                { "key": "correctGuesses", "type": "integer", "required": false },
+                { "key": "totalGuesses", "type": "integer", "required": false }
+            ],
+            "indexes": [
+                { "key": "by_room", "type": "key", "columns": ["roomId"], "orders": ["ASC"] }
             ]
         }
     ]

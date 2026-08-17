@@ -148,6 +148,18 @@ async function main() {
   check("match reaches winner", room.status === "winner");
   console.log("   final scores:", JSON.parse(room.scoresJson));
 
+  console.log("→ archive: summary written + transient data purged…");
+  const rows = (r: any): any[] => r.rows || r.documents || [];
+  const res = rows(
+    await A.db.listRows({ databaseId: DB, tableId: "results", queries: [Query.equal("roomId", roomId), Query.limit(1)] }),
+  )[0];
+  check("results summary written", !!res && JSON.parse(res.wordsJson || "[]").length >= 1, res ? `${JSON.parse(res.wordsJson).length} words` : "");
+  check("room.resultId set", !!room.resultId);
+  const leftMsgs = rows(
+    await A.db.listRows({ databaseId: DB, tableId: "messages", queries: [Query.equal("roomId", roomId), Query.limit(1)] }),
+  );
+  check("messages purged after archive", leftMsgs.length === 0);
+
   console.log("→ Rematch resets to lobby…");
   await call(A, "rematch", { roomId });
   room = await getRoom(A, roomId);

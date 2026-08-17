@@ -22,6 +22,7 @@ export const CONFIG = {
     players: "players",
     messages: "messages",
     secretWords: "secretWords",
+    results: "results",
   },
 } as const;
 

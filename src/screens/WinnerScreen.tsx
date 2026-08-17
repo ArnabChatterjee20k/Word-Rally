@@ -1,7 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { bevel, color, displayTitle, dots, edge, font } from "../theme.ts";
+import { CONFIG } from "../config.ts";
+import { tablesDB, Query } from "../lib/appwrite.ts";
 import { call } from "../lib/game.ts";
 import type { Room } from "../lib/types.ts";
+
+type Summary = { words: { word: string; tier: string; points: number }[]; correctGuesses: number };
 import type { Standing } from "../App.tsx";
 import { Button } from "../components/Button.tsx";
 import { useToast } from "../components/Toast.tsx";
@@ -19,8 +23,40 @@ export function WinnerScreen({
 }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const [summary, setSummary] = useState<Summary | null>(null);
   const isHost = me === room.hostId;
   const champ = standings[0];
+
+  // The archive function writes the match summary shortly after "winner"; poll for it.
+  useEffect(() => {
+    let alive = true;
+    let tries = 0;
+    const load = () => {
+      tablesDB
+        .listRows({
+          databaseId: CONFIG.dbId,
+          tableId: CONFIG.tables.results,
+          queries: [Query.equal("roomId", room.id), Query.orderDesc("$createdAt"), Query.limit(1)],
+        })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .then((r: any) => {
+          if (!alive) return;
+          const row = (r.rows || r.documents || [])[0];
+          if (row) {
+            setSummary({ words: JSON.parse(row.wordsJson || "[]"), correctGuesses: row.correctGuesses || 0 });
+          } else if (tries++ < 5) {
+            setTimeout(load, 1500);
+          }
+        })
+        .catch(() => {
+          if (alive && tries++ < 5) setTimeout(load, 1500);
+        });
+    };
+    load();
+    return () => {
+      alive = false;
+    };
+  }, [room.id]);
 
   const podium = [
     { pos: "2ND", p: standings[1], h: 150 },
@@ -69,6 +105,28 @@ export function WinnerScreen({
           </div>
         ))}
       </div>
+
+      {summary && summary.words.length > 0 && (
+        <div style={{ background: color.white, border: `2px solid ${color.royal}`, borderRadius: 4, overflow: "hidden", marginBottom: 12 }}>
+          <div style={{ background: color.gold, padding: "5px 8px", fontSize: 11, fontWeight: 700, letterSpacing: ".5px", display: "flex", justifyContent: "space-between" }}>
+            <span>☰  WORDS THIS MATCH</span>
+            <span>
+              {summary.correctGuesses}/{summary.words.length} GUESSED
+            </span>
+          </div>
+          <div style={{ padding: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {summary.words.map((w, i) => (
+              <span
+                key={i}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, background: color.panel, border: `1px solid ${color.royal}`, borderRadius: 2, padding: "4px 8px", fontSize: 12, fontWeight: 700 }}
+              >
+                {w.word}
+                <span style={{ fontFamily: font.pixel, fontSize: 9, color: color.royal }}>{w.points}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ background: color.panel, ...bevel(edge.panel), borderRadius: 6, overflow: "hidden" }}>
         <div style={{ background: color.base, borderBottom: `2px solid ${color.royal}`, padding: "8px 10px", fontSize: 11, fontWeight: 700, letterSpacing: ".5px" }}>
