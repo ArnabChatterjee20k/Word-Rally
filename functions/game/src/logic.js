@@ -21,6 +21,29 @@ export function maskWord(word) {
     .join("   ");
 }
 
+/** Like maskWord but reveals the first `n` letters (left-to-right, spaces preserved).
+ *  revealMask("ROCKET SHIP", 2) -> "R O _ _ _ _   _ _ _ _" */
+export function revealMask(word, n) {
+  let shown = 0;
+  return String(word)
+    .trim()
+    .split(/\s+/)
+    .map((w) =>
+      w
+        .split("")
+        .map((ch) => {
+          if (!/[a-zA-Z]/.test(ch)) return ch;
+          if (shown < n) {
+            shown += 1;
+            return ch.toUpperCase();
+          }
+          return "_";
+        })
+        .join(" "),
+    )
+    .join("   ");
+}
+
 export function levenshtein(a, b) {
   const m = a.length;
   const n = b.length;
@@ -55,6 +78,12 @@ export function classifyGuess(guess, secret) {
 /** Point split when the guesser nails it. */
 export function awards(points) {
   return { guesser: points, drawer: Math.round(points / 2), picker: 20 };
+}
+
+/** Cost of revealing one letter: an even share of the word's points across its
+ *  letters, so each reveal forfeits ~(1/letters) of the reward. */
+export function hintCost(points, letters) {
+  return Math.max(1, Math.round(points / Math.max(1, letters)));
 }
 
 /** Role assignment from the rotation order for a given turn index.

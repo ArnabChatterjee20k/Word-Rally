@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { bevel, color, displayTitle, edge } from "../theme.ts";
 import { pickColor } from "../data.ts";
 import { Mascot } from "../components/Mascot.tsx";
 import { call } from "../lib/game.ts";
+import { primeAudio, sfx } from "../lib/sound.ts";
 import { Panel } from "../components/Panel.tsx";
 import { Button } from "../components/Button.tsx";
 import { useToast } from "../components/Toast.tsx";
@@ -17,7 +18,15 @@ const input = {
   minHeight: 34,
 } as const;
 
-export function LandingScreen({ me, onEnter }: { me: string; onEnter: (roomId: string) => void }) {
+export function LandingScreen({
+  me,
+  onEnter,
+  initialCode = "",
+}: {
+  me: string;
+  onEnter: (roomId: string) => void;
+  initialCode?: string;
+}) {
   const toast = useToast();
   const [nickname, setNickname] = useState(() => {
     try {
@@ -26,7 +35,7 @@ export function LandingScreen({ me, onEnter }: { me: string; onEnter: (roomId: s
       return "";
     }
   });
-  const [joinCode, setJoinCode] = useState("");
+  const [joinCode, setJoinCode] = useState(initialCode.toUpperCase());
   const [rounds, setRounds] = useState(5);
   const [turnSeconds, setTurnSeconds] = useState(80);
   const [busy, setBusy] = useState(false);
@@ -40,6 +49,7 @@ export function LandingScreen({ me, onEnter }: { me: string; onEnter: (roomId: s
   };
 
   const host = async () => {
+    primeAudio();
     setBusy(true);
     try {
       const r = await call<{ roomId: string }>("createRoom", {
@@ -49,6 +59,7 @@ export function LandingScreen({ me, onEnter }: { me: string; onEnter: (roomId: s
         maxPlayers: 16,
       });
       remember();
+      sfx.join();
       onEnter(r.roomId);
     } catch (e) {
       toast((e as Error).message);
@@ -59,6 +70,7 @@ export function LandingScreen({ me, onEnter }: { me: string; onEnter: (roomId: s
 
   const join = async () => {
     if (!joinCode.trim()) return toast("Enter a room code");
+    primeAudio();
     setBusy(true);
     try {
       const r = await call<{ roomId: string }>("joinRoom", {
@@ -67,6 +79,7 @@ export function LandingScreen({ me, onEnter }: { me: string; onEnter: (roomId: s
         color: pickColor(me),
       });
       remember();
+      sfx.join();
       onEnter(r.roomId);
     } catch (e) {
       toast((e as Error).message);
@@ -74,6 +87,17 @@ export function LandingScreen({ me, onEnter }: { me: string; onEnter: (roomId: s
       setBusy(false);
     }
   };
+
+  // Auto-join when arriving via an invite link and a nickname is already remembered.
+  const autoTried = useRef(false);
+  useEffect(() => {
+    if (autoTried.current) return;
+    if (initialCode && nickname.trim()) {
+      autoTried.current = true;
+      join();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { color, dots } from "./theme.ts";
+import { sfx } from "./lib/sound.ts";
 import { pickColor } from "./data.ts";
 import type { Player, Room } from "./lib/types.ts";
 import { ensureSession } from "./lib/session.ts";
@@ -39,6 +40,15 @@ function Game() {
 
   useEffect(() => {
     ensureSession().then(setMe).catch(() => setMe(null));
+  }, []);
+
+  // Invite link: a shared ?room=CODE prefills / auto-joins on landing.
+  const initialInvite = useMemo(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("room") || "";
+    } catch {
+      return "";
+    }
   }, []);
 
   const { room, players, messages } = useRoom(roomId);
@@ -93,9 +103,51 @@ function Game() {
 
   const onlineCount = Object.keys(online).length;
 
+  // Keep the address bar as a shareable invite link for the current room.
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      if (room?.code) url.searchParams.set("room", room.code);
+      else url.searchParams.delete("room");
+      window.history.replaceState(null, "", url.toString());
+    } catch {
+      /* noop */
+    }
+  }, [room?.code, roomId]);
+
+  // ---- sound cues ----------------------------------------------------------
+  const prevStatus = useRef<string | null>(null);
+  useEffect(() => {
+    const s = room?.status ?? null;
+    const prev = prevStatus.current;
+    if (s && prev && s !== prev) {
+      if (s === "play") sfx.start();
+      else if (s === "winner") sfx.win();
+      else if (s === "score") sfx.tick();
+    }
+    prevStatus.current = s;
+  }, [room?.status]);
+
+  const soundRoom = useRef<string | null>(null);
+  const prevMsgLen = useRef(0);
+  useEffect(() => {
+    if (soundRoom.current !== roomId) {
+      soundRoom.current = roomId;
+      prevMsgLen.current = messages.length;
+      return;
+    }
+    if (messages.length > prevMsgLen.current) {
+      const last = messages[messages.length - 1];
+      if (last?.kind === "right") sfx.correct();
+      else if (last?.kind === "sys") sfx.near();
+      else if (last?.kind === "wrong") sfx.wrong();
+    }
+    prevMsgLen.current = messages.length;
+  }, [messages, roomId]);
+
   let content: React.ReactNode;
   if (!me) content = <Splash text="Connecting…" />;
-  else if (!roomId) content = <LandingScreen me={me} onEnter={enterRoom} />;
+  else if (!roomId) content = <LandingScreen me={me} onEnter={enterRoom} initialCode={initialInvite} />;
   else if (!room) content = <Splash text="Loading room…" />;
   else if (room.status === "lobby")
     content = (

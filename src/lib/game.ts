@@ -7,6 +7,7 @@ export type Action =
   | "startMatch"
   | "pickWord"
   | "submitGuess"
+  | "revealHint"
   | "endTurn"
   | "nextTurn"
   | "rematch"

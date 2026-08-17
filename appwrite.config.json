@@ -160,6 +160,11 @@
                     "type": "varchar",
                     "required": false,
                     "size": 64
+                },
+                {
+                    "key": "hintsUsed",
+                    "type": "integer",
+                    "required": false
                 }
             ],
             "indexes": [

@@ -226,6 +226,34 @@ async function main() {
     JSON.parse(afterLeave.turnOrderJson).length === 2 && afterLeave.hostId !== L1.uid,
   );
 
+  console.log("→ reveal hint deducts the guesser's award…");
+  const R1 = await guest("Rev1");
+  const R2 = await guest("Rev2");
+  const R3 = await guest("Rev3");
+  const byR: Record<string, Guest> = { [R1.uid]: R1, [R2.uid]: R2, [R3.uid]: R3 };
+  const rv = await call(R1, "createRoom", { nickname: "Rev1", settings: { totalRounds: 1, turnSeconds: 120 } });
+  await call(R2, "joinRoom", { code: rv.code, nickname: "Rev2" });
+  await call(R3, "joinRoom", { code: rv.code, nickname: "Rev3" });
+  await call(R1, "startMatch", { roomId: rv.roomId });
+  let rvRoom = await getRoom(R1, rv.roomId);
+  await call(byR[rvRoom.pickerId]!, "pickWord", { roomId: rv.roomId, word: "ROCKET SHIP" }); // medium, 120
+  rvRoom = await getRoom(R1, rv.roomId);
+  const gs = byR[rvRoom.guesserId]!;
+  let revRej = false;
+  try {
+    await call(byR[rvRoom.drawerId]!, "revealHint", { roomId: rv.roomId });
+  } catch {
+    revRej = true;
+  }
+  check("reveal by non-guesser rejected", revRej);
+  const h1 = await call(gs, "revealHint", { roomId: rv.roomId });
+  const h2 = await call(gs, "revealHint", { roomId: rv.roomId });
+  check("reveal returns unmasked letters", /[A-Z]/.test(h1.revealed) && h2.hintsUsed === 2, h2.revealed);
+  const before = JSON.parse((await getRoom(R1, rv.roomId)).scoresJson)[rvRoom.guesserId] || 0;
+  await call(gs, "submitGuess", { roomId: rv.roomId, guess: "rocket ship", nickname: "g" });
+  const after = JSON.parse((await getRoom(R1, rv.roomId)).scoresJson)[rvRoom.guesserId] || 0;
+  check("guesser award reduced by 2 hints (120→96, 12/letter)", after - before === 96, `+${after - before}`);
+
   console.log(`\n${failed === 0 ? "✅" : "❌"} E2E: ${passed} passed, ${failed} failed`);
   if (failed > 0) throw new Error(`${failed} checks failed`);
 }

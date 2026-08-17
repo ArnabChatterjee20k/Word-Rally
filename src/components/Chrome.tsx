@@ -1,10 +1,21 @@
+import { useState } from "react";
 import { bevel, color, dots, edge, font } from "../theme.ts";
 import { PHASES } from "../data.ts";
 import type { Room, Status } from "../lib/types.ts";
+import { isMuted, primeAudio, sfx, toggleMuted } from "../lib/sound.ts";
 import { useToast } from "./Toast.tsx";
 
 export function Header({ room }: { room: Room | null }) {
   const toast = useToast();
+  const [muted, setMuted] = useState(isMuted());
+  const onToggleMute = () => {
+    const m = toggleMuted();
+    setMuted(m);
+    if (!m) {
+      primeAudio();
+      sfx.click();
+    }
+  };
   const code = room?.code ?? "----";
   const copy = () => {
     if (room && navigator.clipboard) navigator.clipboard.writeText(room.code).catch(() => {});
@@ -54,6 +65,26 @@ export function Header({ room }: { room: Room | null }) {
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 6, paddingBottom: 2 }}>
+        <button
+          onClick={onToggleMute}
+          title={muted ? "Sound off — click to enable" : "Sound on — click to mute"}
+          aria-label={muted ? "Unmute" : "Mute"}
+          style={{
+            background: muted ? color.panel : color.gold,
+            color: color.ink,
+            border: 0,
+            ...bevel(edge.gold),
+            borderRadius: 2,
+            padding: "4px 8px",
+            fontSize: 13,
+            lineHeight: 1,
+            cursor: "pointer",
+            minHeight: 28,
+            marginRight: 4,
+          }}
+        >
+          {muted ? "🔇" : "🔊"}
+        </button>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".5px", color: color.ink }}>
           ROOM CODE
         </div>

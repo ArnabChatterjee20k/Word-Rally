@@ -3,8 +3,10 @@ import {
   normalize,
   scoreForWord,
   maskWord,
+  revealMask,
   classifyGuess,
   awards,
+  hintCost,
   rolesForTurn,
   roundForTurn,
   isMatchOver,
@@ -285,6 +287,7 @@ const actions = {
         tier,
         points,
         revealWord: "",
+        hintsUsed: 0,
         turnStartedAt: now().toISOString(),
         turnEndsAt: plusSeconds(settings.turnSeconds ?? DEFAULTS.turnSeconds),
       },
@@ -312,7 +315,11 @@ const actions = {
     if (result === "exact") {
       const scores = json(room.scoresJson) || {};
       const a = awards(secret.points);
-      scores[room.guesserId] = (scores[room.guesserId] || 0) + a.guesser;
+      // Each revealed letter forfeits its per-letter share of the reward.
+      const hints = room.hintsUsed || 0;
+      const letters = secret.word.replace(/[^a-zA-Z]/g, "").length;
+      const guesserAward = Math.max(0, a.guesser - hints * hintCost(secret.points, letters));
+      scores[room.guesserId] = (scores[room.guesserId] || 0) + guesserAward;
       scores[room.drawerId] = (scores[room.drawerId] || 0) + a.drawer;
       scores[room.pickerId] = (scores[room.pickerId] || 0) + a.picker;
 
@@ -334,6 +341,20 @@ const actions = {
       await postMessage(db, room.$id, "wrong", nickname, body.guess);
     }
     return { result };
+  },
+
+  async revealHint(db, uid, body) {
+    const room = await loadRoom(db, body.roomId);
+    if (room.status !== "play") throw new Error("No live turn");
+    if (room.guesserId !== uid) throw new Error("Only the guesser can reveal");
+    if (room.turnEndsAt && now() >= new Date(room.turnEndsAt)) throw new Error("Turn is over");
+    const secret = await loadSecret(db, room);
+    if (!secret) throw new Error("No word set");
+    const letters = secret.word.replace(/[^a-zA-Z]/g, "").length;
+    // Never reveal the final letter — this is a paid hint, not the answer.
+    const hints = Math.min((room.hintsUsed || 0) + 1, Math.max(1, letters - 1));
+    await db.updateRow({ databaseId: DB, tableId: T.rooms, rowId: room.$id, data: { hintsUsed: hints } });
+    return { revealed: revealMask(secret.word, hints), hintsUsed: hints, cost: hintCost(secret.points, letters) };
   },
 
   async endTurn(db, uid, body) {

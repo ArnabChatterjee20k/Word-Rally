@@ -7,6 +7,7 @@ import type { Player, Room } from "../lib/types.ts";
 import type { Online } from "../lib/presence.ts";
 import { Panel } from "../components/Panel.tsx";
 import { Button } from "../components/Button.tsx";
+import { LinkIcon } from "../components/Icons.tsx";
 import { useToast } from "../components/Toast.tsx";
 
 export function LobbyScreen({
@@ -47,6 +48,12 @@ export function LobbyScreen({
     } catch (e) {
       toast((e as Error).message);
     }
+  };
+
+  const copyInvite = () => {
+    const url = `${window.location.origin}${window.location.pathname}?room=${room.code}`;
+    if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
+    toast("Invite link copied — share it to join!");
   };
 
   const start = async () => {
@@ -104,6 +111,12 @@ export function LobbyScreen({
       </Panel>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <Button variant="gold" onClick={copyInvite} style={{ padding: 12 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
+            <LinkIcon />
+            COPY INVITE LINK
+          </span>
+        </Button>
         <div style={{ background: color.grid, ...bevel(edge.blue), borderRadius: 6, padding: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".5px", marginBottom: 8 }}>MATCH SETTINGS</div>
           {settings.map(([k, v]) => (

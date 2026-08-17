@@ -3,8 +3,10 @@ import {
   normalize,
   scoreForWord,
   maskWord,
+  revealMask,
   classifyGuess,
   awards,
+  hintCost,
   rolesForTurn,
   roundForTurn,
   isMatchOver,
@@ -25,6 +27,12 @@ test("maskWord hides letters, keeps word gaps", () => {
   expect(maskWord("ROCKET SHIP")).toBe("_ _ _ _ _ _   _ _ _ _");
 });
 
+test("revealMask reveals the first n letters", () => {
+  expect(revealMask("ROCKET SHIP", 0)).toBe("_ _ _ _ _ _   _ _ _ _");
+  expect(revealMask("ROCKET SHIP", 2)).toBe("R O _ _ _ _   _ _ _ _");
+  expect(revealMask("kite", 3)).toBe("K I T _");
+});
+
 test("classifyGuess: exact / near / wrong", () => {
   expect(classifyGuess("rocket ship", "ROCKET SHIP")).toBe("exact");
   expect(classifyGuess("rocket ships", "rocket ship")).toBe("near"); // plural
@@ -35,6 +43,12 @@ test("classifyGuess: exact / near / wrong", () => {
 
 test("awards split points", () => {
   expect(awards(120)).toEqual({ guesser: 120, drawer: 60, picker: 20 });
+});
+
+test("hintCost is points-per-letter", () => {
+  expect(hintCost(120, 10)).toBe(12);
+  expect(hintCost(60, 4)).toBe(15);
+  expect(hintCost(200, 11)).toBe(18);
 });
 
 test("rolesForTurn rotates one seat per turn", () => {

@@ -5,6 +5,7 @@ import { BRUSHES, SWATCHES } from "../data.ts";
 import { CONFIG } from "../config.ts";
 import { tablesDB, Query } from "../lib/appwrite.ts";
 import { call } from "../lib/game.ts";
+import { sfx } from "../lib/sound.ts";
 import { makeCanvasBroadcaster, subscribeCanvas, type Seg } from "../lib/presence.ts";
 import type { Message, Room } from "../lib/types.ts";
 import type { Role, Standing } from "../App.tsx";
@@ -63,6 +64,30 @@ export function PlayScreen({
   const [erasing, setErasing] = useState(false);
   const [guess, setGuess] = useState("");
   const [wordToDraw, setWordToDraw] = useState("");
+  const [revealedMask, setRevealedMask] = useState("");
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const [revealBusy, setRevealBusy] = useState(false);
+
+  // Reset the guesser's revealed letters each new turn.
+  useEffect(() => {
+    setRevealedMask("");
+    setHintsUsed(0);
+  }, [room.turnIndex]);
+
+  const revealLetter = async () => {
+    setRevealBusy(true);
+    try {
+      const r = await call<{ revealed: string; hintsUsed: number; cost: number }>("revealHint", { roomId: room.id });
+      setRevealedMask(r.revealed);
+      setHintsUsed(r.hintsUsed);
+      sfx.tick();
+      toast(`Revealed a letter · −${r.cost} pts`);
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setRevealBusy(false);
+    }
+  };
 
   // The drawer (and only the drawer) can read the secret word to draw it.
   useEffect(() => {
@@ -263,7 +288,7 @@ export function PlayScreen({
               title={isDrawer ? "Only you can see this — draw it!" : undefined}
               style={{ fontFamily: font.display, fontSize: isDrawer ? 20 : 22, letterSpacing: isDrawer ? "1px" : "6px", color: color.white, WebkitTextStroke: `2px ${color.ink}` }}
             >
-              {isDrawer ? wordToDraw || "…" : room.maskedWord}
+              {isDrawer ? wordToDraw || "…" : revealedMask || room.maskedWord}
             </div>
           </div>
           <div style={{ fontFamily: font.pixel, fontSize: 9, color: color.white }}>{room.tier} · {room.points} PTS</div>
@@ -310,6 +335,18 @@ export function PlayScreen({
             </button>
             <Button variant="dark" size="sm" onClick={clearBoard} style={{ marginLeft: "auto", padding: "8px 12px", fontSize: 10 }}>CLEAR</Button>
             <Button size="sm" onClick={endTurn} style={{ padding: "8px 14px", fontSize: 10 }}>END TURN ▶</Button>
+          </div>
+        )}
+
+        {isGuesser && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
+            <Button variant="ghost" size="sm" onClick={revealLetter} style={{ opacity: revealBusy ? 0.6 : 1 }}>
+              REVEAL A LETTER
+            </Button>
+            <span style={{ fontFamily: font.pixel, fontSize: 9, color: color.white }}>
+              −{Math.max(1, Math.round(room.points / Math.max(1, (room.maskedWord.match(/_/g) || []).length)))} PTS/LETTER
+              {hintsUsed ? ` · USED ${hintsUsed}` : ""}
+            </span>
           </div>
         )}
       </div>
