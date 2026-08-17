@@ -154,6 +154,34 @@ async function main() {
   const reset = JSON.parse(room.scoresJson);
   check("rematch → lobby, scores zeroed", room.status === "lobby" && Object.values(reset).every((v) => v === 0));
 
+  console.log("→ 2-player match (picker also draws)…");
+  const D = await guest("Duo1");
+  const E = await guest("Duo2");
+  const byUid2: Record<string, Guest> = { [D.uid]: D, [E.uid]: E };
+  const two = await call(D, "createRoom", { nickname: D.nick, settings: { totalRounds: 1, turnSeconds: 120 } });
+  await call(E, "joinRoom", { code: two.code, nickname: E.nick });
+  await call(D, "startMatch", { roomId: two.roomId });
+  let r2 = await getRoom(D, two.roomId);
+  check("2p: picker also draws (roles collapse)", r2.pickerId === r2.drawerId);
+  check("2p: guesser is the other player", r2.guesserId !== r2.pickerId && !!r2.guesserId);
+  let t = 0;
+  while (t < 6) {
+    r2 = await getRoom(D, two.roomId);
+    if (r2.status === "winner") break;
+    if (r2.status === "pick") {
+      await call(byUid2[r2.pickerId]!, "pickWord", { roomId: two.roomId, word: WORD });
+      r2 = await getRoom(D, two.roomId);
+      await call(byUid2[r2.guesserId]!, "submitGuess", { roomId: two.roomId, guess: "rocket ship", nickname: "g" });
+    }
+    r2 = await getRoom(D, two.roomId);
+    if (r2.status === "score") {
+      await call(D, "nextTurn", { roomId: two.roomId });
+      t++;
+    }
+  }
+  r2 = await getRoom(D, two.roomId);
+  check("2p: match reaches winner", r2.status === "winner");
+
   console.log(`\n${failed === 0 ? "✅" : "❌"} E2E: ${passed} passed, ${failed} failed`);
   if (failed > 0) throw new Error(`${failed} checks failed`);
 }

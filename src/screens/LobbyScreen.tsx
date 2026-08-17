@@ -127,8 +127,8 @@ export function LobbyScreen({
         </Button>
 
         {isHost ? (
-          <Button onClick={start} style={{ padding: 14, minHeight: 48, opacity: busy || players.length < 3 ? 0.6 : 1 }}>
-            {players.length < 3 ? "NEED 3+ PLAYERS" : "START MATCH ▶"}
+          <Button onClick={start} style={{ padding: 14, minHeight: 48, opacity: busy || players.length < 2 ? 0.6 : 1 }}>
+            {players.length < 2 ? "NEED 2+ PLAYERS" : "START MATCH ▶"}
           </Button>
         ) : (
           <div style={{ fontFamily: font.pixel, fontSize: 10, color: color.ink, textAlign: "center", padding: "6px 0" }}>

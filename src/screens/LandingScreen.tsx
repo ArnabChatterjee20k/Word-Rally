@@ -164,7 +164,7 @@ export function LandingScreen({ me, onEnter }: { me: string; onEnter: (roomId: s
           <div style={{ borderTop: `1px dotted ${color.inkSoft}`, margin: "4px 0" }} />
           <div style={{ fontSize: 12, lineHeight: 1.4, color: color.ink }}>
             Max 16 players. Everyone gets an equal number of turns as picker, drawer and
-            guesser. You need at least 3 players to start.
+            guesser. You need at least 2 players to start.
           </div>
           <Button variant="dark" onClick={host} style={{ opacity: busy ? 0.6 : 1 }}>
             CREATE ROOM

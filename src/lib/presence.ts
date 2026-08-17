@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { client, presences, Permission, Query, Role } from "./appwrite.ts";
+import { presences, realtime, Permission, Query, Role } from "./appwrite.ts";
 import { channels, presenceIds } from "../config.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -24,31 +24,23 @@ function readMeta(payload: any): any | null {
 const usersRW = () => [Permission.read(Role.users()), Permission.update(Role.users())];
 
 // ----------------------------------------------------------------------------
-// Canvas over Presence: the drawer upserts a room-scoped presence record whose
-// metadata carries the latest stroke batch; guessers subscribe to it. Ephemeral
-// and auto-expiring — no table, no history (late joiners see blank until the
-// next stroke).
+// Canvas over Presence, sent on the shared Realtime socket. The drawer upserts a
+// room-scoped presence whose metadata carries the latest stroke batch; guessers
+// subscribe to presences.<id>. Ephemeral + auto-expiring (no table, no history,
+// no HTTP per stroke — the SDK collapses rapid upserts to the latest payload).
 // ----------------------------------------------------------------------------
 export function makeCanvasBroadcaster(roomId: string) {
   const presenceId = presenceIds.canvas(roomId);
   let seq = 0;
   let clearVersion = 0;
 
-  async function push(segs: Seg[], clear = false) {
+  const push = (segs: Seg[], clear = false) => {
     seq += 1;
     if (clear) clearVersion += 1;
-    try {
-      await presences.upsert({
-        presenceId,
-        status: "drawing",
-        metadata: { seq, clearVersion, segs },
-        expiresAt: new Date(Date.now() + 30_000).toISOString(),
-        permissions: usersRW(),
-      });
-    } catch {
-      /* presence may be unavailable; drawing simply won't broadcast */
-    }
-  }
+    realtime
+      .upsertPresence({ presenceId, status: "drawing", metadata: { seq, clearVersion, segs }, permissions: usersRW() })
+      .catch(() => {});
+  };
 
   return {
     send: (segs: Seg[]) => push(segs, false),
@@ -60,12 +52,13 @@ export function subscribeCanvas(
   roomId: string,
   handlers: { apply: (segs: Seg[]) => void; clear: () => void },
 ): () => void {
-  const presenceId = presenceIds.canvas(roomId);
   let lastSeq = 0;
   let lastClear = 0;
-  let unsub = () => {};
-  try {
-    unsub = client.subscribe(channels.presence(presenceId), (evt: any) => {
+  let sub: any = null;
+  let closed = false;
+
+  realtime
+    .subscribe(channels.canvasPresence(roomId), (evt: any) => {
       const meta = readMeta(evt.payload);
       if (!meta) return;
       if ((meta.clearVersion ?? 0) > lastClear) {
@@ -76,23 +69,30 @@ export function subscribeCanvas(
         lastSeq = meta.seq;
         if (Array.isArray(meta.segs) && meta.segs.length) handlers.apply(meta.segs);
       }
-    });
-  } catch {
-    /* noop */
-  }
+    })
+    .then((s) => {
+      if (closed) s.unsubscribe();
+      else sub = s;
+    })
+    .catch(() => {});
+
   return () => {
-    try {
-      unsub();
-    } catch {
-      /* noop */
+    closed = true;
+    if (sub) {
+      try {
+        sub.unsubscribe();
+      } catch {
+        /* noop */
+      }
     }
   };
 }
 
 // ----------------------------------------------------------------------------
-// Liveness: each player upserts an "online" presence (heartbeat) with their
-// room + role; everyone subscribes to see who's connected. Best-effort — if the
-// Presences API is unavailable the game still works, we just don't show dots.
+// Liveness: each player upserts an "online" presence over the socket (no
+// heartbeat — it auto-expires when the tab disconnects). Everyone subscribes to
+// the presences channel to render who's connected. Seeded once over HTTP so a
+// late joiner sees players who announced before they connected.
 // ----------------------------------------------------------------------------
 export type Online = Record<string, { role: string; nickname: string }>;
 
@@ -106,69 +106,69 @@ export function usePresence(
 
   useEffect(() => {
     if (!roomId || !uid) return;
-    let alive = true;
+    let cancelled = false;
+    let sub: any = null;
     const presenceId = presenceIds.user(uid);
 
-    const beat = () =>
-      presences
-        .upsert({
-          presenceId,
-          status: "online",
-          metadata: { roomId, role, nickname },
-          expiresAt: new Date(Date.now() + 45_000).toISOString(),
-          permissions: [
-            Permission.read(Role.users()),
-            Permission.update(Role.user(uid)),
-            Permission.delete(Role.user(uid)),
-          ],
-        })
-        .catch(() => {});
+    const drop = (id: string) =>
+      setOnline((prev) => {
+        if (!(id in prev)) return prev;
+        const { [id]: _gone, ...rest } = prev;
+        return rest;
+      });
 
     const ingest = (pr: any) => {
-      if (!pr || pr.status !== "online") return;
+      if (!pr) return;
       const m = readMeta(pr);
-      if (m?.roomId !== roomId) return;
+      if (pr.status !== "online" || m?.roomId !== roomId) return drop(pr.$id);
       setOnline((prev) => ({ ...prev, [pr.$id]: { role: m.role, nickname: m.nickname } }));
     };
 
-    beat();
-    const hb = setInterval(beat, 15_000);
+    realtime
+      .upsertPresence({
+        presenceId,
+        status: "online",
+        metadata: { roomId, role, nickname },
+        permissions: [
+          Permission.read(Role.users()),
+          Permission.update(Role.user(uid)),
+          Permission.delete(Role.user(uid)),
+        ],
+      })
+      .catch(() => {});
 
     presences
       .list({ queries: [Query.limit(100)] })
       .then((r: any) => {
-        if (!alive) return;
-        (r.presences || r.rows || r.documents || []).forEach(ingest);
+        if (!cancelled) (r.presences || r.rows || r.documents || []).forEach(ingest);
       })
       .catch(() => {});
 
-    let unsub = () => {};
-    try {
-      unsub = client.subscribe(channels.presences(), (evt: any) => {
-        const pr = evt.payload || {};
+    realtime
+      .subscribe(channels.presences(), (evt: any) => {
         const isDelete = (evt.events || []).some((e: string) => e.endsWith(".delete"));
-        if (isDelete) {
-          setOnline((prev) => {
-            const { [pr.$id]: _drop, ...rest } = prev;
-            return rest;
-          });
-        } else {
-          ingest(pr);
-        }
-      });
-    } catch {
-      /* noop */
-    }
+        if (isDelete) drop((evt.payload || {}).$id);
+        else ingest(evt.payload);
+      })
+      .then((s) => {
+        if (cancelled) s.unsubscribe();
+        else sub = s;
+      })
+      .catch(() => {});
 
     return () => {
-      alive = false;
-      clearInterval(hb);
-      try {
-        unsub();
-      } catch {
-        /* noop */
+      cancelled = true;
+      if (sub) {
+        try {
+          sub.unsubscribe();
+        } catch {
+          /* noop */
+        }
       }
-      presences.delete({ presenceId }).catch(() => {});
+      // Announce we've left this room (socket-bound presence also clears on disconnect).
+      realtime
+        .upsertPresence({ presenceId, status: "away", metadata: { roomId: "", role, nickname } })
+        .catch(() => {});
     };
   }, [roomId, uid, role, nickname]);
 

@@ -1,3 +1,5 @@
+import { Channel } from "appwrite";
+
 // Public Appwrite config (safe to ship to the browser).
 // EDIT the endpoint + projectId for your self-hosted instance, or set them at runtime
 // in the browser console via localStorage: wr_endpoint / wr_project, then reload.
@@ -23,13 +25,13 @@ export const CONFIG = {
   },
 } as const;
 
-// Realtime channel helpers (TablesDB channels: tablesdb.<db>.tables.<table>.rows[.<row>])
+// Realtime channels built with the SDK's Channel helper (used with new Realtime()).
 export const channels = {
-  roomRow: (roomId: string) => `tablesdb.${CONFIG.dbId}.tables.rooms.rows.${roomId}`,
-  playersTable: () => `tablesdb.${CONFIG.dbId}.tables.players.rows`,
-  messagesTable: () => `tablesdb.${CONFIG.dbId}.tables.messages.rows`,
-  presence: (id: string) => `presences.${id}`,
-  presences: () => `presences`,
+  roomRow: (roomId: string) => Channel.tablesdb(CONFIG.dbId).table(CONFIG.tables.rooms).row(roomId),
+  playersTable: () => Channel.tablesdb(CONFIG.dbId).table(CONFIG.tables.players).row(),
+  messagesTable: () => Channel.tablesdb(CONFIG.dbId).table(CONFIG.tables.messages).row(),
+  canvasPresence: (roomId: string) => Channel.presence(presenceIds.canvas(roomId)),
+  presences: () => Channel.presences(),
 };
 
 // Presence ids

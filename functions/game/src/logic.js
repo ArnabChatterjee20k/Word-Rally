@@ -57,9 +57,15 @@ export function awards(points) {
   return { guesser: points, drawer: Math.round(points / 2), picker: 20 };
 }
 
-/** Role assignment from the rotation order for a given turn index. */
+/** Role assignment from the rotation order for a given turn index.
+ *  With only 2 players the roles collapse: the picker also draws their own word,
+ *  the other player guesses (roles still alternate every turn). */
 export function rolesForTurn(turnOrder, turnIndex) {
   const n = turnOrder.length;
+  if (n <= 2) {
+    const p = turnOrder[turnIndex % n];
+    return { pickerId: p, drawerId: p, guesserId: turnOrder[(turnIndex + 1) % n] };
+  }
   return {
     pickerId: turnOrder[turnIndex % n],
     drawerId: turnOrder[(turnIndex + 1) % n],

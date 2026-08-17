@@ -166,7 +166,7 @@ const actions = {
     if (room.hostId !== uid) throw new Error("Only the host can start");
     if (room.status !== "lobby") throw new Error("Match already started");
     const order = json(room.turnOrderJson) || [];
-    if (order.length < 3) throw new Error("Need at least 3 players (picker, drawer, guesser)");
+    if (order.length < 2) throw new Error("Need at least 2 players to start");
 
     await db.updateRow({
       databaseId: DB,

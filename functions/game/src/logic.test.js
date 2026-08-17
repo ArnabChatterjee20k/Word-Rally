@@ -44,6 +44,12 @@ test("rolesForTurn rotates one seat per turn", () => {
   expect(rolesForTurn(order, 4)).toEqual({ pickerId: "a", drawerId: "b", guesserId: "c" });
 });
 
+test("rolesForTurn: 2 players — picker also draws, roles alternate", () => {
+  const order = ["a", "b"];
+  expect(rolesForTurn(order, 0)).toEqual({ pickerId: "a", drawerId: "a", guesserId: "b" });
+  expect(rolesForTurn(order, 1)).toEqual({ pickerId: "b", drawerId: "b", guesserId: "a" });
+});
+
 test("round + match-over math", () => {
   expect(roundForTurn(0, 4)).toBe(1);
   expect(roundForTurn(4, 4)).toBe(2);
