@@ -6,14 +6,11 @@
   </picture>
 </p>
 
-<!-- Tech + repo badges (assets vendored in ./assets/badges) -->
+<!-- Appwrite badge vendored in ./assets/badges; feedback badge is a live count (hotlinked) -->
 <p align="center">
-  <a href="https://react.dev"><img alt="React 19" src="./assets/badges/react.svg" /></a>
-  <a href="https://www.typescriptlang.org"><img alt="TypeScript 5.9" src="./assets/badges/typescript.svg" /></a>
-  <a href="https://bun.sh"><img alt="Bun 1.3" src="./assets/badges/bun.svg" /></a>
-  <a href="https://appwrite.io"><img alt="Appwrite Cloud" src="./assets/badges/appwrite.svg" /></a>
-  <img alt="Realtime — Presence" src="./assets/badges/realtime.svg" />
-  <img alt="Status: prototype" src="./assets/badges/status.svg" />
+  <a href="https://appwrite.io"><img alt="Appwrite Cloud" height="28" src="./assets/badges/appwrite.svg" /></a>
+  &nbsp;
+  <a href="https://feedback-io-beta.vercel.app/6a8542b200125e495683/landing-page"><img alt="Give feedback with FeedbackIO" height="28" src="https://feedback-io-beta.vercel.app/api/badge/6a8542b200125e495683?count=true" /></a>
 </p>
 
 <p align="center">
