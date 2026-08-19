@@ -1,9 +1,6 @@
-<!-- Header banner (adaptive light/dark) -->
+<!-- Header banner — the in-app Word Rally hero, rendered to an image -->
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./assets/badges/header-dark.svg" />
-    <img alt="Word Rally — realtime draw-and-guess party game on Appwrite" src="./assets/badges/header-light.svg" width="750" />
-  </picture>
+  <img alt="Word Rally — a realtime draw-and-guess party game on Appwrite" src="./assets/badges/header.png" width="820" />
 </p>
 
 <!-- Appwrite badge vendored in ./assets/badges; feedback badge is a live count (hotlinked) -->
